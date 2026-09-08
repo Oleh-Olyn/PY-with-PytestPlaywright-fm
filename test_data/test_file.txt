@@ -1,0 +1,3 @@
+test infromation
+for test_file.txt for
+text case
