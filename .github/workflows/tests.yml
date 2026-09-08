@@ -9,9 +9,16 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        browser: [chromium, firefox]
 
     steps:
       - name: Checkout repository
@@ -27,8 +34,87 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Install Playwright Chromium
-        run: playwright install --with-deps chromium
+      - name: Install Playwright browser
+        run: playwright install --with-deps ${{ matrix.browser }}
 
       - name: Run tests
-        run: pytest -n 2 --browser chromium --alluredir=reports
+        run: |
+          pytest -n 2 \
+            --browser ${{ matrix.browser }} \
+            --alluredir=reports
+
+      - name: Upload Allure results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-${{ matrix.browser }}
+          path: reports
+
+
+  report:
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Chromium results
+        uses: actions/download-artifact@v4
+        with:
+          name: allure-results-chromium
+          path: reports/chromium
+
+      - name: Download Firefox results
+        uses: actions/download-artifact@v4
+        with:
+          name: allure-results-firefox
+          path: reports/firefox
+
+      - name: Install Allure CLI
+        run: |
+          wget -q https://github.com/allure-framework/allure2/releases/download/2.36.0/allure-2.36.0.tgz
+          tar -xzf allure-2.36.0.tgz
+          sudo mv allure-2.36.0 /opt/allure
+          sudo ln -s /opt/allure/bin/allure /usr/local/bin/allure
+
+      - name: Generate Allure report
+        run: |
+          mkdir -p combined-results
+          cp -r reports/chromium/* combined-results/
+          cp -r reports/firefox/* combined-results/
+
+          allure generate combined-results \
+            -o allure-report \
+            --clean
+
+      - name: Upload Allure report
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: allure-report
+
+
+  deploy:
+    needs: report
+    if: always()
+    runs-on: ubuntu-latest
+
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
