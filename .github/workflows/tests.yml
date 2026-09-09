@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
         browser: [chromium, firefox]
 
@@ -39,7 +40,7 @@ jobs:
 
       - name: Run tests
         run: |
-          pytest -n 2 \
+          pytest \
             --browser ${{ matrix.browser }} \
             --alluredir=reports
 
@@ -87,6 +88,7 @@ jobs:
       - name: Generate Allure report
         run: |
           mkdir -p combined-results
+
           cp -r reports/chromium/* combined-results/
           cp -r reports/firefox/* combined-results/
 
@@ -117,3 +119,4 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
